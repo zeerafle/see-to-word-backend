@@ -5,7 +5,9 @@ from dotenv import load_dotenv
 from azure.ai.vision.imageanalysis import ImageAnalysisClient
 from azure.ai.vision.imageanalysis.models import VisualFeatures
 from azure.ai.translation.text import TextTranslationClient
+from azure.ai.translation.text.models import InputTextItem
 from azure.core.credentials import AzureKeyCredential
+from azure.core.exceptions import HttpResponseError
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -22,7 +24,9 @@ except KeyError:
     print("Missing environment variable 'AI_SERVICES_ENDPOINT' or 'AI_SERVICES_KEY'")
     exit()
 
-client = ImageAnalysisClient(endpoint, AzureKeyCredential(key))
+image_client = ImageAnalysisClient(endpoint=endpoint, credential=AzureKeyCredential(key))
+translation_client = TextTranslationClient(endpoint=endpoint, credential=AzureKeyCredential(key))
+
 
 app = FastAPI()
 
@@ -36,8 +40,8 @@ def read_root():
     return {"Hello": "World"}
 
 
-@app.post("/image-analysis")
-def image_analysis(image_data: ImageData):
+@app.post("/describe")
+def describe(image_data: ImageData):
     try:
         # decode the base64 string
         image_bytes = base64.b64decode(image_data.base64_image)
@@ -45,7 +49,7 @@ def image_analysis(image_data: ImageData):
     except Exception as e:
         raise HTTPException(status_code=400, detail="Invalid image data")
 
-    result = client.analyze(
+    result = image_client.analyze(
         image_data=image_bytes,
         visual_features=[VisualFeatures.CAPTION, VisualFeatures.READ],
     )
@@ -93,5 +97,22 @@ def image_analysis(image_data: ImageData):
 
     response["read"] = read_data
     response["text"] = text
+
+    # translate text to indonesian
+    try:
+        translation_result = translation_client.translate(
+            [InputTextItem(text=text)],
+            to=["id"],
+            from_parameter="en"
+        )
+        translation = translation_result[0] if translation_result else None
+
+        if translation:
+            response["translation"] = translation.translations[0].text
+
+    except HttpResponseError as e:
+        if e.error is not None:
+            print("HTTP error: " + e.error.message)
+        raise
 
     return response
