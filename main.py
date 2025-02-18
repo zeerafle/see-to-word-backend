@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 
 from azure.ai.vision.imageanalysis import ImageAnalysisClient
 from azure.ai.vision.imageanalysis.models import VisualFeatures
+from azure.ai.translation.text import TextTranslationClient
 from azure.core.credentials import AzureKeyCredential
 
 from fastapi import FastAPI, HTTPException
@@ -51,6 +52,7 @@ def image_analysis(image_data: ImageData):
 
     # Convert analysis results into a JSON response
     response = {}
+    text = ""
 
     # Process caption results
     if result.caption is not None:
@@ -58,11 +60,14 @@ def image_analysis(image_data: ImageData):
             "text": result.caption.text,
             "confidence": round(result.caption.confidence, 4),
         }
+        text = result.caption.text
     else:
         response["caption"] = None
 
     # Process OCR (read) results
     read_data = []
+    high_confidence_words = []
+
     if result.read is not None:
         for block in result.read.blocks:
             for line in block.lines:
@@ -72,13 +77,21 @@ def image_analysis(image_data: ImageData):
                     "words": [],
                 }
                 for word in line.words:
+                    conf = round(word.confidence, 4)
                     word_data = {
                         "text": word.text,
                         "bounding_polygon": word.bounding_polygon,
-                        "confidence": round(word.confidence, 4),
+                        "confidence": conf
                     }
                     line_data["words"].append(word_data)
+                    if conf > 0.8:
+                        high_confidence_words.append(word.text)
                 read_data.append(line_data)
+
+    if read_data:
+        text += f" and some text that says \"{' '.join(high_confidence_words)}\""
+
     response["read"] = read_data
+    response["text"] = text
 
     return response

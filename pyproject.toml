@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "azure-ai-translation-text==1.0.0b1",
     "azure-ai-vision-imageanalysis>=1.0.0",
     "fastapi[standard]>=0.115.8",
     "python-dotenv>=1.0.1",
