@@ -12,7 +12,7 @@ from azure.core.credentials import AzureKeyCredential
 from azure.core.exceptions import HttpResponseError
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 
@@ -34,6 +34,18 @@ speech_config.speech_synthesis_voice_name = "id-ID-GadisNeural"
 
 app = FastAPI()
 
+if os.getenv('ENV') == 'production':
+    origins = os.getenv('ALLOWED_ORIGINS').split(',')
+else:
+    origins = ["*", "null"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class ImageData(BaseModel):
     base64_image: str
