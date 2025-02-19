@@ -1,4 +1,5 @@
 import base64
+from io import BytesIO
 import os
 from dotenv import load_dotenv
 
@@ -6,10 +7,12 @@ from azure.ai.vision.imageanalysis import ImageAnalysisClient
 from azure.ai.vision.imageanalysis.models import VisualFeatures
 from azure.ai.translation.text import TextTranslationClient
 from azure.ai.translation.text.models import InputTextItem
+import azure.cognitiveservices.speech as speechsdk
 from azure.core.credentials import AzureKeyCredential
 from azure.core.exceptions import HttpResponseError
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 
@@ -26,7 +29,8 @@ except KeyError:
 
 image_client = ImageAnalysisClient(endpoint=endpoint, credential=AzureKeyCredential(key))
 translation_client = TextTranslationClient(endpoint=endpoint, credential=AzureKeyCredential(key))
-
+speech_config = speechsdk.SpeechConfig(subscription=key, region=os.environ.get('AI_SERVICES_REGION'))
+speech_config.speech_synthesis_voice_name = "id-ID-GadisNeural"
 
 app = FastAPI()
 
@@ -98,6 +102,7 @@ def describe(image_data: ImageData):
     response["read"] = read_data
     response["text"] = text
 
+
     # translate text to indonesian
     try:
         translation_result = translation_client.translate(
@@ -114,5 +119,17 @@ def describe(image_data: ImageData):
         if e.error is not None:
             print("HTTP error: " + e.error.message)
         raise
+
+
+    # text to speech
+    synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config,
+                                              audio_config=None)
+    synthesizer_result = synthesizer.speak_text_async(response["translation"]).get()
+
+    if synthesizer_result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
+        audio_stream = BytesIO(synthesizer_result.audio_data)
+        response["audio"] = base64.b64encode(audio_stream.getvalue()).decode("utf-8")
+    else:
+        raise HTTPException(status_code=500, detail="Failed to synthesize audio")
 
     return response
