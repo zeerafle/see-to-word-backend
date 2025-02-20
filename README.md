@@ -14,6 +14,8 @@ This is the backend for an image captioning service. It leverages Azure Cognitiv
   - [Health Check](#health-check)
   - [Image Analysis](#image-analysis)
 - [Usage](#usage)
+- [Deployments](#deployments)
+- [Troubleshooting](#troubleshooting)
 
 ## Features
 
@@ -141,4 +143,52 @@ Your API will be available at: [http://localhost:8000](http://localhost:8000)
 
 2. **Send a request:**
 
-   Use Postman or any HTTP client to send a POST request to `/image-analysis` with the JSON payload containing your base64 image string.
+   Use Postman or any HTTP client to send a POST request to `/describe` with the JSON payload containing your base64 image string.
+
+
+## Deployments
+
+This project can be packaged in a Docker container and deployed to Azure using the following steps:
+
+1. **Create an Azure Container Registry (ACR):**
+
+   ```bash
+   az acr create --resource-group seetoword \
+   --name seetowordacr --sku Basic
+   ```
+
+2. **Build and push your Docker image to ACR:**
+
+   ```bash
+   az acr build --resource-group seetoword --registry seetowordacr --image seetoword:v1 .
+   ```
+
+3. **Create an Azure App Service plan for Linux:**
+
+   ```bash
+   az appservice plan create --name seetoword-backend --resource-group seetoword --sku B1 --is-linux
+   ```
+
+4. **Create the web app using the container image:**
+
+   ```bash
+   az webapp create \
+   --resource-group seetoword \
+   --plan seetoword-backend --name seetowordacr \
+   --assign-identity [system] \
+   --role AcrPull \
+   --scope /subscriptions/$SUBSCRIPTION_ID/resourceGroups/seetoword \
+   --acr-use-identity --acr-identity [system] \
+   --container-image-name seetowordacr.azurecr.io/seetoword:v1
+   ```
+
+## Troubleshooting
+
+- **422 Unprocessable Entity:**
+  Ensure the JSON payload key is named `base64_image` (and not `image_data`).
+
+- **Image Decoding Errors:**
+  Verify that your base64 string decodes into a valid image format (e.g., JPEG or PNG).
+
+- **Azure API Errors:**
+  Double-check your Azure API credentials, endpoint, and subscription status.
